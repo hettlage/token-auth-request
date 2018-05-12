@@ -64,6 +64,7 @@ class AuthSession:
         self._logged_out = False
         self._auth_request_maker = lambda _username, _password: dict(username=_username, password=_password)
         self._auth_response_parser = lambda response: json.loads(response)
+        self._no_authentication = False
 
     def auth_request_maker(self, request_maker):
         """Replace the function for creating the authentication request.
@@ -140,6 +141,34 @@ class AuthSession:
         self._expiry_time = None
         self._logged_out = True
 
+    @property
+    def no_authentication(self):
+        """Return boolean whether authentication is disabled.
+
+         Returns
+         -------
+         no_auth : bool
+             Whether authentication is disabled.
+
+         """
+
+        return self._no_authentication
+
+    @no_authentication.setter
+    def no_authentication(self, value):
+        """Disable or enable authentication.
+
+        If authentication is disabled, no token is requested and no Authorizatyion header is sent.
+
+        Parameters
+        ----------
+        value : bool
+            Whether to disable authentication.
+
+        """
+
+        self._no_authentication = value
+
     def __getattr__(self, item):
         """Get the item from the internal requests session, requiring a token first if need be.
 
@@ -180,6 +209,9 @@ class AuthSession:
         Request an authentication token and ensure it will be sent as an Authentication HTTP header.
 
         """
+
+        if self.no_authentication:
+            return
 
         payload = self._auth_request_maker(self._username, self._password)
         r = requests.post(self._auth_url, json=payload)

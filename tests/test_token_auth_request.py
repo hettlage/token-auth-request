@@ -159,6 +159,21 @@ def test_logout_removes_auth_data():
 
 
 @httpretty.httprettified
+def test_no_authentication_request():
+    """No authentication request is made if the no_authentication property is set to True."""
+
+    httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
+
+    session = auth_session(username=USERNAME, password=PASSWORD, auth_url=TOKEN_URI)
+    session.no_authentication = True
+
+    session.get(DUMMY_URI)
+
+    assert len(HTTPretty.latest_requests) == 1
+    assert 'token' not in httpretty.last_request().headers['Host']
+
+
+@httpretty.httprettified
 def test_401_results_in_auth_exception():
     """An AuthException is raised if the status code 401 is returned when a token is requested"""
 
