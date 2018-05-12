@@ -81,6 +81,8 @@ logout()
 
  The `auth_response_parser` replaces the default function for parsing the response body of the POST request for getting a token. It must accept a string as its only argument, and it must return a dictionary with `token` and `expires_in` as keys.
 
+ The property `no_authentication` can be used to disable authentication. If authentication is disabled, no authentication request is made. The Authorization header still may be sent with HTTP requests, but this not necessarily the case.
+
 The package also defines an exception type `AuthException`. An `AuthException` should be raised if the server replies with a 401 error when a token is requested, or if an HTTP request is made after the object's `logout` method has been called.
 
 Tests
@@ -88,15 +90,16 @@ Tests
 
 The package must pass the following tests.
 
-1. If a correct username and password are passed to `token_session`, the first time one of the HTTP verb methods is called on the returned object, a POST request to the given URL is made with the username and password passed as a JSON string. Assuming the token has not expired, further calls don't make such a request.
-2. If a correct username and password are passed to `token_session`, assuming the token has not expired, all subsequent HTTP requests (after the initial request for a token) have an Authentication header with the correct string.
-3. If an HTTP request is made and the current token's expiry time is less than one minute in the future, a new token is requested and subsequent HTTP requests use the new token in the Authentication header.
-4. The logout method removes username, password, token and expiry date.
-5. An AuthException is raised if the server replies with a 401 error when a token is requested.
-6. An AuthException is raised if an HTTP request is made after the logout method has been called.
-7. An exception is raised if the server replies with a status code other than 200 or 401.
-8. `auth_request_maker` changes the function for making the body of an authentication request.
-9. `auth_response_parser` changes the function for parsing the response of an authentication request.
+* If a correct username and password are passed to `token_session`, the first time one of the HTTP verb methods is called on the returned object, a POST request to the given URL is made with the username and password passed as a JSON string. Assuming the token has not expired, further calls don't make such a request.
+* If a correct username and password are passed to `token_session`, assuming the token has not expired, all subsequent HTTP requests (after the initial request for a token) have an Authentication header with the correct string.
+* If an HTTP request is made and the current token's expiry time is less than one minute in the future, a new token is requested and subsequent HTTP requests use the new token in the Authentication header.
+* The logout method removes username, password, token and expiry date.
+* No token is requested if the `no_authentication` property is set to `True`.
+* An AuthException is raised if the server replies with a 401 error when a token is requested.
+* An AuthException is raised if an HTTP request is made after the logout method has been called.
+* An exception is raised if the server replies with a status code other than 200 or 401.
+* `auth_request_maker` changes the function for making the body of an authentication request.
+* `auth_response_parser` changes the function for parsing the response of an authentication request.
 
 Implementation
 --------------
