@@ -28,23 +28,17 @@ class AuthSession:
     """An HTTP requests session which automatically handles token authentication.
 
     The session object exposes all the methods and fields exposed by the Session class of the requests library; see [
-    1]_. Before making its first HTTP call, it gets an authentication token by sending the username and password to
-    an authentication URL. The token and its expiry date are stored, and the token is sent in an Authentication HTTP
-    header with all HTTP requests. If the token expires, a new one is requested before the next HTTP request is made.
+    1]_.
 
-    The username, password and token can be deleted by calling the `logout` method. You cannot make any further HTTP
-    requests after doing this.
+    You can use the login method to enablew authentication. Once this is done, before making its first HTTP call,
+    the session gets an authentication token by sending the username and password to an authentication URL. The token
+    and its expiry date are stored, and the token is sent in an Authentication HTTP header with all HTTP requests. If
+    the token expires, a new one is requested before the next HTTP request is made.
+
+    The username, password and token can be deleted by calling the `logout` method. No token is requested and no
+    Authentication header are sent any longer, unless you call the login method again.
 
     This class is not intended for use in applications which require a high degree of security.
-
-    Parameters
-    ----------
-    username : str
-        The username for authentication.
-    password : str
-        The password for authentication.
-    auth_url : str
-        The URL for authenticating, i.e. for obtaining a token.
 
     References
     ----------
@@ -54,17 +48,54 @@ class AuthSession:
 
     http_methods = ['delete', 'get', 'head', 'options', 'patch', 'post', 'put', 'request']
 
-    def __init__(self, username, password, auth_url):
-        self._username = username
-        self._password = password
-        self._auth_url = auth_url
+    def __init__(self):
+        self._username = None
+        self._password = None
+        self._auth_url = None
         self._token = None
         self._expiry_time = None
         self._session = requests.Session()
-        self._logged_out = False
         self._auth_request_maker = lambda _username, _password: dict(username=_username, password=_password)
         self._auth_response_parser = lambda response: json.loads(response)
-        self._no_authentication = False
+        self._is_using_auth = False
+
+    def login(self, username, password, auth_url):
+        """Enable authentication.
+
+        After calling this method, token based authentication is used with HTTP requests. A token is only requested
+        when the first HTTP request is made.
+
+        Parameters
+        ----------
+        username : str
+            The username for authentication.
+        password : str
+            The password for authentication.
+        auth_url : str
+            The URL for authenticating, i.e. for obtaining a token.
+
+        """
+
+        self._username = username
+        self._password = password
+        self._auth_url = auth_url
+        self._is_using_auth = True
+
+    def logout(self):
+        """Disable authentication.
+
+        After this method is called, no token is requested and no Authentication header is sent any longer, unless you
+        call the `login` method again.
+
+        """
+
+        self._username = None
+        self._password = None
+        self._auth_url = None
+        self._token = None
+        self._expiry_time = None
+        self._is_using_auth = False
+        self._session.auth = None
 
     def auth_request_maker(self, request_maker):
         """Replace the function for creating the authentication request.
@@ -128,47 +159,6 @@ class AuthSession:
 
         self._auth_response_parser = response_parser
 
-    def logout(self):
-        """Remove all authentication data.
-
-        Any attempt to make HTTP requests after calling this method will result in an AuthException being raised.
-
-        """
-
-        self._username = None
-        self._password = None
-        self._token = None
-        self._expiry_time = None
-        self._logged_out = True
-
-    @property
-    def no_authentication(self):
-        """Return boolean whether authentication is disabled.
-
-         Returns
-         -------
-         no_auth : bool
-             Whether authentication is disabled.
-
-         """
-
-        return self._no_authentication
-
-    @no_authentication.setter
-    def no_authentication(self, value):
-        """Disable or enable authentication.
-
-        If authentication is disabled, no token is requested and no Authorizatyion header is sent.
-
-        Parameters
-        ----------
-        value : bool
-            Whether to disable authentication.
-
-        """
-
-        self._no_authentication = value
-
     def __getattr__(self, item):
         """Get the item from the internal requests session, requiring a token first if need be.
 
@@ -193,8 +183,9 @@ class AuthSession:
             # this is not an HTTP request
             return session_property
 
-        if self._logged_out:
-            raise AuthException('No HTTP requests can be made after logging out')
+        if not self._is_using_auth:
+            # no authentication done
+            return session_property
 
         if self._has_valid_token():
             # there is a valid token
@@ -210,7 +201,7 @@ class AuthSession:
 
         """
 
-        if self.no_authentication:
+        if not self._is_using_auth:
             return
 
         payload = self._auth_request_maker(self._username, self._password)
@@ -246,19 +237,10 @@ class AuthException(Exception):
         super(Exception, self).__init__(message)
 
 
-def auth_session(username, password, auth_url):
-    """Create an HTTP requests session instance which automatically handles token authentication.
+def auth_session():
+    """Create an HTTP requests session instance which can handle token authentication.
 
     This method is not intended for use in applications which require a high degree of security.
-
-    Parameters
-    ----------
-    username : str
-        The username for authentication.
-    password : str
-        The password for authentication.
-    auth_url : str
-        The URL for authenticating, i.e. for obtaining a token.
 
     Returns
     -------
@@ -267,4 +249,4 @@ def auth_session(username, password, auth_url):
 
     """
 
-    return AuthSession(username=username, password=password, auth_url=auth_url)
+    return AuthSession()

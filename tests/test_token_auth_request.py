@@ -38,12 +38,13 @@ method_ids = [method[0] for method in methods]
 @httpretty.httprettified
 @pytest.mark.parametrize('method', methods, ids=method_ids)
 def test_initial_authentication_request(method):
-    """A token is requested before the first HTTP request."""
+    """After logging in, a token is requested before the first HTTP request."""
 
     httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 1000))
     httpretty.register_uri(method[1], DUMMY_URI, 'some test response')
 
-    session = auth_session(USERNAME, PASSWORD, TOKEN_URI)
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
     getattr(session, method[0])(DUMMY_URI)
     getattr(session, method[0])(DUMMY_URI)
 
@@ -65,12 +66,13 @@ def test_initial_authentication_request(method):
 
 @httpretty.httprettified
 def test_authentication_header_sent():
-    """An authentication header is sent with every request."""
+    """After logging in, an authentication header is sent with every request."""
 
     httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 1000))
     httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
 
-    session = auth_session(USERNAME, PASSWORD, TOKEN_URI)
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
 
     session.get(DUMMY_URI)
     session.get(DUMMY_URI)
@@ -90,7 +92,8 @@ def test_expired_token_is_requested_again(dt1, dt2):
 
     httpretty.reset()
     httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 600))
-    session = auth_session(USERNAME, PASSWORD, TOKEN_URI)
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
 
     # initial token
     httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
@@ -139,13 +142,15 @@ def test_logout_removes_auth_data():
     httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 1000))
     httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
 
-    session = auth_session(username=USERNAME, password=PASSWORD, auth_url=TOKEN_URI)
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
 
     session.get(DUMMY_URI)
 
     # authentication data has been set
     assert session._username is not None
     assert session._password is not None
+    assert session._auth_url is not None
     assert session._token is not None
     assert session._expiry_time is not None
 
@@ -154,23 +159,45 @@ def test_logout_removes_auth_data():
     # authentication data has been removed
     assert session._username is None
     assert session._password is None
+    assert session._auth_url is None
     assert session._token is None
     assert session._expiry_time is None
 
 
 @httpretty.httprettified
 def test_no_authentication_request():
-    """No authentication request is made if the no_authentication property is set to True."""
+    """No authentication request is made after logging out."""
 
     httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
 
-    session = auth_session(username=USERNAME, password=PASSWORD, auth_url=TOKEN_URI)
-    session.no_authentication = True
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
+    session.logout()
 
     session.get(DUMMY_URI)
 
     assert len(HTTPretty.latest_requests) == 1
     assert 'token' not in httpretty.last_request().headers['Host']
+
+
+@httpretty.httprettified
+def test_no_authentication_header():
+    """No Authentication header is sent after logging out."""
+
+    httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 1000))
+    httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
+
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
+
+    session.get(DUMMY_URI)
+    assert 'Authentication' in httpretty.last_request().headers
+
+    session.logout()
+
+    session.get(DUMMY_URI)
+
+    assert 'Authentication' not in httpretty.last_request().headers
 
 
 @httpretty.httprettified
@@ -180,33 +207,14 @@ def test_401_results_in_auth_exception():
     httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 1000), status=401)
     httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
 
-    session = auth_session(username=USERNAME, password=PASSWORD, auth_url=TOKEN_URI)
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
 
     with pytest.raises(AuthException) as excinfo:
         session.get(DUMMY_URI)
 
     message = excinfo.value.args[0]
     assert 'Unauthorized' in message
-
-
-@httpretty.httprettified
-def test_no_requests_possible_after_logging_out():
-    """An attempt to make an HTTP request after logging out results in an AuthException being raised"""
-
-    httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 1000))
-    httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
-
-    session = auth_session(username=USERNAME, password=PASSWORD, auth_url=TOKEN_URI)
-
-    session.get(DUMMY_URI)
-
-    session.logout()
-
-    with pytest.raises(AuthException) as excinfo:
-        session.get(DUMMY_URI)
-
-    message = excinfo.value.args[0]
-    assert 'No HTTP requests can be made after logging out' in message
 
 
 @httpretty.httprettified
@@ -220,7 +228,8 @@ def test_exception_for_status_other_than_200_or_401(status):
     httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 1000), status=status)
     httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
 
-    session = auth_session(username=USERNAME, password=PASSWORD, auth_url=TOKEN_URI)
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
 
     with pytest.raises(Exception):
         session.get(DUMMY_URI)
@@ -233,7 +242,8 @@ def test_custom_auth_request_maker():
     httpretty.register_uri(httpretty.POST, TOKEN_URI, token_response(TOKEN_ONE, 1000))
     httpretty.register_uri(httpretty.GET, DUMMY_URI, 'some test response')
 
-    session = auth_session(username=USERNAME, password=PASSWORD, auth_url=TOKEN_URI)
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
     session.auth_request_maker(lambda username, password : dict(auth_data='{}:{}'.format(username, password)))
 
     session.get(DUMMY_URI)
@@ -256,7 +266,8 @@ def test_custom_auth_response_parser():
     httpretty.register_uri(httpretty.POST, TOKEN_URI, TOKEN_ONE)
 
     expires_in = 5871
-    session = auth_session(USERNAME, PASSWORD, TOKEN_URI)
+    session = auth_session()
+    session.login(USERNAME, PASSWORD, TOKEN_URI)
     session.auth_response_parser(lambda response: dict(token=response, expires_in=expires_in))
 
     # initial token

@@ -21,13 +21,16 @@ where `abcd1234` is the authentication token. Hopefully the token returned by th
        "password": "WakandaForever"
    }
 
-Then you may make your life easier by using `token-auth-requests`. (Your token based authentication server works slightly differently? Don't worry, we'll cover that case below.) This package essentially provides a method `auth_session`, which accepts a username, password and the URL from which a token can be requested and returns an HTTP requests session. This session has all the functionality of a `Session` object of the `requests <http://docs.python-requests.org/>`_ library.
+Then you may make your life easier by using `token-auth-requests`. (Your token based authentication server works slightly differently? Don't worry, we'll cover that case below.) This package essentially provides a method `auth_session`, which returns an HTTP requests session that supports token based authentication. This session has all the functionality of a `Session` object of the `requests <http://docs.python-requests.org/>`_ library.
+
+To enable authentication, you need to call the session's `login` method with the username, password and URL for requesting an authentication token.
 
 For example, if there is a GET route `/enemies` and a POST route `/save-the-world`, we could do the following.
 
 .. code-block:: python
 
-   session = auth_session(username='tchalla', password='WakandaForver', token_url='http://api.wakanda.gov.wk/token')
+   session = auth_session()
+   session.login(username='tchalla', password='WakandaForver', token_url='http://api.wakanda.gov.wk/token')
 
    # who are the enemies?
    r = session.get('http://api.wakanda.gov.wk/enemies')
@@ -37,7 +40,13 @@ For example, if there is a GET route `/enemies` and a POST route `/save-the-worl
    r = session.post('http://api.wakanda.gov.wk/save-the-world')
    print(r.status_code)  # hopefully the status code is 200...
 
-Refer to the `requests documentation <http://docs.python-requests.org/>`_ for all the cool stuff you can do. You don't have to worry about about tokens or their expiry dates; they are taken care of automatically.
+Refer to the `requests documentation <http://docs.python-requests.org/>`_ for all the cool stuff you can do. You don't have to worry about tokens or their expiry dates; they are taken care of automatically.
+
+When you don't need authentication any longer, you may simply call the `logout` method.
+
+.. code-block:: python
+   
+   session.logout()
 
 Custom authentication requests and responses
 --------------------------------------------
@@ -89,18 +98,6 @@ In case the server replies with a status code other than 200 (OK) or 401 (Unauth
 Using `auth_session` in tests
 -----------------------------
 
-When testing functions that use an `auth_session`, the authentication might be more of a hindrance than a blessing. In this case it might be worth disabling the authentication, which you may achieve by setting the `no_authentication` property to `True`.
-
-.. code-block:: python
-   
-   session = auth_session(username='tchalla', password='WakandaForver', token_url='http://api.wakanda.gov.wk/token')
-   session.no_authentication = True
-
-Even if authentication is disabled, an Authorization header might still be included in HTTP requests. But this is not guaranteed. However, it *is* guaranteed that no token is requested any longer.
-If you want to re-enable authentication, you just have to set the `no_authentication` property to `False`.
-
-.. code-block:: python
-   
-   session.no_authentication = False
+When testing functions that use an `auth_session`, authentication might be more of a hindrance than a blessing. In this case you should just not call the `login` method.
 
 
