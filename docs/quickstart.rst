@@ -86,4 +86,21 @@ If you try to authenticate with a wrong username or password (and the server doe
 
 In case the server replies with a status code other than 200 (OK) or 401 (Unauthorized), a more generic exception is raised.
 
+Using `auth_session` in tests
+-----------------------------
+
+When testing functions that use an `auth_session`, the authentication might be more of a hindrance than a blessing. In this case it might be worth disabling the authentication, which you may achieve by setting the `no_authentication` property to `True`.
+
+.. code-block:: python
+   
+   session = auth_session(username='tchalla', password='WakandaForver', token_url='http://api.wakanda.gov.wk/token')
+   session.no_authentication = True
+
+Even if authentication is disabled, an Authorization header might still be included in HTTP requests. But this is not guaranteed. However, it *is* guaranteed that no token is requested any longer.
+If you want to re-enable authentication, you just have to set the `no_authentication` property to `False`.
+
+.. code-block:: python
+   
+   session.no_authentication = False
+
 
